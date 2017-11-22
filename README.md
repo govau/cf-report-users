@@ -1,23 +1,39 @@
-# cf-run-and-wait
+# cf-report-users
 
 CloudFoundry CLI plugin to list all users in a CloudFoundry installation
 
-## Installing
+## Install from binary
+
+Pick as appropriate for your OS:
+
+```bash
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.linux32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.linux64
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.osx
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.win32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.win64
+```
+
+## Install from source
 
 ```bash
 go get github.com/govau/cf-report-users/cmd/report-users
 cf install-plugin $GOPATH/bin/report-users -f
 ```
 
-## Running a task
+## Usage
 
 ```bash
 cf report-users
 ```
 
-If successful, will exit with status code of `0`.
+## Development
 
-If it fails, will print some debug info, and exit with non-zero status code.
+```bash
+go install ./cmd/report-users && \
+    cf install-plugin $GOPATH/bin/report-users -f && \
+    cf report-users
+```
 
 ## Building a new release
 
@@ -32,9 +48,5 @@ GOOS=windows GOARCH=amd64 go build -o ${PLUGIN_NAME}.win64
 GOOS=windows GOARCH=386 go build -o ${PLUGIN_NAME}.win32
 GOOS=darwin GOARCH=amd64 go build -o ${PLUGIN_NAME}.osx
 
-shasum -a 1 ${PLUGIN_NAME}.linux64
-shasum -a 1 ${PLUGIN_NAME}.linux32
-shasum -a 1 ${PLUGIN_NAME}.win64
-shasum -a 1 ${PLUGIN_NAME}.win32
-shasum -a 1 ${PLUGIN_NAME}.osx
+shasum -a 1 ${PLUGIN_NAME}.*
 ```

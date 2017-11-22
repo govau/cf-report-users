@@ -23,6 +23,7 @@ type simpleClient struct {
 
 // Get makes a GET request, where r is the relative path, and rv is json.Unmarshalled to
 func (sc *simpleClient) Get(r string, rv interface{}) error {
+	log.Printf("GET %s%s\n", sc.API, r)
 	req, err := http.NewRequest(http.MethodGet, sc.API+r, nil)
 	if err != nil {
 		return err
@@ -161,7 +162,7 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 		Name: "Report Users",
 		Version: plugin.VersionType{
 			Major: 0,
-			Minor: 1,
+			Minor: 2,
 			Build: 0,
 		},
 		MinCliVersion: plugin.VersionType{

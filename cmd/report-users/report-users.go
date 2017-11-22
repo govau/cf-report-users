@@ -12,11 +12,16 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
+// simpleClient is a simple CloudFoundry client
 type simpleClient struct {
-	API           string
+	// API url, ie "https://api.system.example.com"
+	API string
+
+	// Authorization header, ie "bearer eyXXXXX"
 	Authorization string
 }
 
+// Get makes a GET request, where r is the relative path, and rv is json.Unmarshalled to
 func (sc *simpleClient) Get(r string, rv interface{}) error {
 	req, err := http.NewRequest(http.MethodGet, sc.API+r, nil)
 	if err != nil {
@@ -36,9 +41,14 @@ func (sc *simpleClient) Get(r string, rv interface{}) error {
 	return json.NewDecoder(resp.Body).Decode(rv)
 }
 
+// List makes a GET request, to list resources, where we will follow the "next_url"
+// to page results, and calls "f" as a callback to process each resource found
 func (sc *simpleClient) List(r string, f func(*resource) error) error {
 	for r != "" {
-		var res listResponse
+		var res struct {
+			NextURL   string `json:"next_url"`
+			Resources []*resource
+		}
 		err := sc.Get(r, &res)
 		if err != nil {
 			return err
@@ -56,6 +66,8 @@ func (sc *simpleClient) List(r string, f func(*resource) error) error {
 	return nil
 }
 
+// resource captures fields that we care about when
+// retrieving data from CloudFoundry
 type resource struct {
 	Entity struct {
 		Name               string // org, space
@@ -68,11 +80,6 @@ type resource struct {
 		Admin              bool   // user
 		Username           string // user
 	}
-}
-
-type listResponse struct {
-	NextURL   string `json:"next_url"`
-	Resources []*resource
 }
 
 type reportUsers struct{}

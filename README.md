@@ -7,11 +7,11 @@ CloudFoundry CLI plugin to list all users in a CloudFoundry installation
 Pick as appropriate for your OS:
 
 ```bash
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.linux32
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.linux64
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.osx
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.win32
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.2.0/report-users.win64
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.3.0/report-users.linux32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.3.0/report-users.linux64
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.3.0/report-users.osx
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.3.0/report-users.win32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.3.0/report-users.win64
 ```
 
 ## Install from source
@@ -42,11 +42,11 @@ PLUGIN_PATH=$GOPATH/src/github.com/govau/cf-report-users/cmd/report-users
 PLUGIN_NAME=$(basename $PLUGIN_PATH)
 cd $PLUGIN_PATH
 
-GOOS=linux GOARCH=amd64 go build -o ${PLUGIN_NAME}.linux64
-GOOS=linux GOARCH=386 go build -o ${PLUGIN_NAME}.linux32
-GOOS=windows GOARCH=amd64 go build -o ${PLUGIN_NAME}.win64
-GOOS=windows GOARCH=386 go build -o ${PLUGIN_NAME}.win32
-GOOS=darwin GOARCH=amd64 go build -o ${PLUGIN_NAME}.osx
+GOOS=linux GOARCH=amd64 go build -o ${PLUGIN_NAME}.linux64 cmd/${PLUGIN_NAME}/${PLUGIN_NAME}.go
+GOOS=linux GOARCH=386 go build -o ${PLUGIN_NAME}.linux32 cmd/${PLUGIN_NAME}/${PLUGIN_NAME}.go
+GOOS=windows GOARCH=amd64 go build -o ${PLUGIN_NAME}.win64 cmd/${PLUGIN_NAME}/${PLUGIN_NAME}.go
+GOOS=windows GOARCH=386 go build -o ${PLUGIN_NAME}.win32 cmd/${PLUGIN_NAME}/${PLUGIN_NAME}.go
+GOOS=darwin GOARCH=amd64 go build -o ${PLUGIN_NAME}.osx cmd/${PLUGIN_NAME}/${PLUGIN_NAME}.go
 
 shasum -a 1 ${PLUGIN_NAME}.*
 ```

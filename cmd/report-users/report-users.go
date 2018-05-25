@@ -142,10 +142,11 @@ func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Organization", "Space", "Application", "Buildpack", "Out of date"})
+	table.SetHeader([]string{"Organization", "Space", "Application", "Buildpack", "Days since restage"})
 
 	buildpacks := make(map[string]*resource)
 
+	n := time.Now()
 	err = client.List("/v2/organizations", func(org *resource) error {
 		return client.List(org.Entity.SpacesURL, func(space *resource) error {
 			return client.List(space.Entity.AppsURL, func(app *resource) error {
@@ -160,11 +161,11 @@ func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error
 					buildpacks[app.Entity.BuildpackGUID] = &bbp
 					bp = &bbp
 				}
-				ood := ""
+				ood := "Needs attention"
 				if bp.Metadata.UpdatedAt.After(app.Entity.PackageUpdatedAt) {
-					ood = fmt.Sprintf("%d days", int(math.Ceil(bp.Metadata.UpdatedAt.Sub(app.Entity.PackageUpdatedAt).Hours()/24.0)))
-				} else if !bp.Entity.Enabled {
-					ood = "Needs attention"
+					ood = fmt.Sprintf("%d days", int(math.Ceil(n.Sub(app.Entity.PackageUpdatedAt).Hours()/24.0)))
+				} else if bp.Entity.Enabled {
+					ood = "OK"
 				}
 				table.Append([]string{org.Entity.Name, space.Entity.Name, app.Entity.Name, app.Entity.Buildpack, ood})
 				return nil

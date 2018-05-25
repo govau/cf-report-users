@@ -7,8 +7,8 @@
     "plugin",
     "plugin/models"
   ]
-  revision = "e3799ad7e657d4e04663af7f0440c3fc0906c9ac"
-  version = "v6.36.1"
+  revision = "ff533881ab054581f763f1caab2e41233be39930"
+  version = "v6.36.2"
 
 [[projects]]
   name = "github.com/mattn/go-runewidth"
@@ -25,6 +25,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "93be392f1895439cedec06d1518582d4be6de1f0a019eb0513ac071289fdcf5a"
+  inputs-digest = "d51ad129b071c0cde7ed28b90ef344cc4e0616cfdcfedfdf381fd2207329addc"
   solver-name = "gps-cdcl"
   solver-version = 1

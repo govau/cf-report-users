@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"code.cloudfoundry.org/cli/plugin"
@@ -73,6 +73,7 @@ func (sc *simpleClient) List(r string, f func(*resource) error) error {
 // retrieving data from CloudFoundry
 type resource struct {
 	Metadata struct {
+		Guid      string    `json:"guid"`       // app
 		UpdatedAt time.Time `json:"updated_at"` // buildpack
 	} `json:"metadata"`
 	Entity struct {
@@ -92,6 +93,14 @@ type resource struct {
 		Enabled            bool      `json:"enabled"`            // buildpack
 		PackageUpdatedAt   time.Time `json:"package_updated_at"` // app
 	} `json:"entity"`
+}
+
+type droplet struct {
+	Buildpacks []struct {
+		Name          string `json:"name"`
+		BuildpackName string `json:"buildpack_name"`
+		Version       string `json:"version"`
+	} `json:"buildpacks"`
 }
 
 type reportUsers struct{}
@@ -142,32 +151,61 @@ func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Organization", "Space", "Application", "Buildpack", "Days since restage"})
+	table.SetHeader([]string{"Organization", "Space", "Application", "Buildpacks", "Messages"})
 
 	buildpacks := make(map[string]*resource)
+	err = client.List("/v2/buildpacks", func(bp *resource) error {
+		if bp.Entity.Enabled {
+			buildpacks[bp.Entity.Name] = bp
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
 
-	n := time.Now()
 	err = client.List("/v2/organizations", func(org *resource) error {
 		return client.List(org.Entity.SpacesURL, func(space *resource) error {
 			return client.List(space.Entity.AppsURL, func(app *resource) error {
-				bp, ok := buildpacks[app.Entity.BuildpackGUID]
-				if !ok {
-					var bbp resource
-					err := client.Get(fmt.Sprintf("/v2/buildpacks/%s", app.Entity.BuildpackGUID), &bbp)
-					if err != nil {
-						bbp.Entity.Filename = app.Entity.Buildpack
-						bbp.Entity.Enabled = false
+				var bps []string
+				var messages []string
+
+				var dropletAnswer droplet
+				err := client.Get(fmt.Sprintf("/v3/apps/%s/droplets/current", app.Metadata.Guid), &dropletAnswer)
+				if err != nil {
+					messages = append(messages, "needs attention (1)")
+				} else {
+					if len(dropletAnswer.Buildpacks) == 0 {
+						messages = append(messages, "needs attention (2)")
 					}
-					buildpacks[app.Entity.BuildpackGUID] = &bbp
-					bp = &bbp
+					for _, bp := range dropletAnswer.Buildpacks {
+						if bp.Version == "" {
+							messages = append(messages, "needs attention (3)")
+						} else {
+							bps = append(bps, fmt.Sprintf("%s v%s", bp.BuildpackName, bp.Version))
+							bpr, found := buildpacks[bp.Name]
+							if !found {
+								messages = append(messages, "needs attention (4)")
+							} else {
+								if !strings.Contains(bpr.Entity.Filename, bp.Version) {
+									messages = append(messages, "needs attention (5)")
+								}
+							}
+						}
+					}
 				}
-				ood := "Needs attention"
-				if bp.Metadata.UpdatedAt.After(app.Entity.PackageUpdatedAt) {
-					ood = fmt.Sprintf("%d days", int(math.Ceil(n.Sub(app.Entity.PackageUpdatedAt).Hours()/24.0)))
-				} else if bp.Entity.Enabled {
-					ood = "OK"
+
+				if len(messages) == 0 {
+					messages = append(messages, "OK")
 				}
-				table.Append([]string{org.Entity.Name, space.Entity.Name, app.Entity.Name, app.Entity.Buildpack, ood})
+
+				table.Append([]string{
+					org.Entity.Name,
+					space.Entity.Name,
+					app.Entity.Name,
+					strings.Join(bps, ", "),
+					strings.Join(messages, ", "),
+				})
 				return nil
 			})
 		})
@@ -241,7 +279,7 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 		Name: "Report Users",
 		Version: plugin.VersionType{
 			Major: 0,
-			Minor: 3,
+			Minor: 4,
 			Build: 0,
 		},
 		MinCliVersion: plugin.VersionType{

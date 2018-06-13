@@ -7,11 +7,11 @@ CloudFoundry CLI plugin to list all users in a CloudFoundry installation
 Pick as appropriate for your OS:
 
 ```bash
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.4.0/report-users.linux32
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.4.0/report-users.linux64
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.4.0/report-users.osx
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.4.0/report-users.win32
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.4.0/report-users.win64
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.linux32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.linux64
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.osx
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.win32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.win64
 ```
 
 ## Install from source

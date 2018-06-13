@@ -187,11 +187,17 @@ func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error
 							if !found {
 								messages = append(messages, "needs attention (4)")
 							} else {
-								if !strings.Contains(bpr.Entity.Filename, bp.Version) {
+								if !strings.HasSuffix(bpr.Entity.Filename, fmt.Sprintf("v%s.zip", bp.Version)) {
 									messages = append(messages, "needs attention (5)")
 								}
 							}
 						}
+					}
+				}
+
+				if len(bps) == 0 {
+					if app.Entity.Buildpack != "" {
+						bps = append(bps, app.Entity.Buildpack)
 					}
 				}
 

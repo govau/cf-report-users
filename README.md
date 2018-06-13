@@ -20,6 +20,7 @@ cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.
 go get github.com/govau/cf-report-users/cmd/report-users
 cd $GOPATH/src/github.com/govau/cf-report-users/cmd/report-users
 dep ensure
+go install ./cmd/report-users
 cf install-plugin $GOPATH/bin/report-users -f
 ```
 

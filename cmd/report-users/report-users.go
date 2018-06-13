@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -21,11 +23,16 @@ type simpleClient struct {
 
 	// Authorization header, ie "bearer eyXXXXX"
 	Authorization string
+
+	// Quiet - if set don't print progress to stderr
+	Quiet bool
 }
 
 // Get makes a GET request, where r is the relative path, and rv is json.Unmarshalled to
 func (sc *simpleClient) Get(r string, rv interface{}) error {
-	log.Printf("GET %s%s\n", sc.API, r)
+	if !sc.Quiet {
+		log.Printf("GET %s%s", sc.API, r)
+	}
 	req, err := http.NewRequest(http.MethodGet, sc.API+r, nil)
 	if err != nil {
 		return err
@@ -105,7 +112,7 @@ type droplet struct {
 
 type reportUsers struct{}
 
-func newSimpleClient(cliConnection plugin.CliConnection) (*simpleClient, error) {
+func newSimpleClient(cliConnection plugin.CliConnection, quiet bool) (*simpleClient, error) {
 	at, err := cliConnection.AccessToken()
 	if err != nil {
 		return nil, err
@@ -119,42 +126,53 @@ func newSimpleClient(cliConnection plugin.CliConnection) (*simpleClient, error) 
 	return &simpleClient{
 		API:           api,
 		Authorization: at,
+		Quiet:         quiet,
 	}, nil
 }
 
 func (c *reportUsers) Run(cliConnection plugin.CliConnection, args []string) {
+	outputJSON := false
+	quiet := false
+
+	fs := flag.NewFlagSet("report-users", flag.ExitOnError)
+	fs.BoolVar(&outputJSON, "output-json", false, "if set sends JSON to stdout instead of a rendered table")
+	fs.BoolVar(&quiet, "quiet", false, "if set suppressing printing of progress messages to stderr")
+	err := fs.Parse(args[1:])
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client, err := newSimpleClient(cliConnection, quiet)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	switch args[0] {
 	case "report-users":
-		if len(args) != 1 {
-			log.Fatal("Expected no args")
-		}
-		err := c.reportUsers(cliConnection)
+		err := c.reportUsers(client, os.Stdout, outputJSON)
 		if err != nil {
 			log.Fatal(err)
 		}
 
 	case "report-buildpacks":
-		if len(args) != 1 {
-			log.Fatal("Expected no args")
-		}
-		err := c.reportBuildpacks(cliConnection)
+		err := c.reportBuildpacks(client, os.Stdout, outputJSON)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 }
 
-func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error {
-	client, err := newSimpleClient(cliConnection)
-	if err != nil {
-		return err
-	}
+type buildpackUsageInfo struct {
+	Organization string   `json:"organization"`
+	Space        string   `json:"space"`
+	Application  string   `json:"application"`
+	Buildpacks   []string `json:"buildpacks,omitempty"`
+	Messages     []string `json:"messages,omitempty"`
+}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Organization", "Space", "Application", "Buildpacks", "Messages"})
-
+func (c *reportUsers) reportBuildpacks(client *simpleClient, out io.Writer, outputJSON bool) error {
 	buildpacks := make(map[string]*resource)
-	err = client.List("/v2/buildpacks", func(bp *resource) error {
+	err := client.List("/v2/buildpacks", func(bp *resource) error {
 		if bp.Entity.Enabled {
 			buildpacks[bp.Entity.Name] = bp
 		}
@@ -164,6 +182,7 @@ func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error
 		return err
 	}
 
+	var allInfo []*buildpackUsageInfo
 	err = client.List("/v2/organizations", func(org *resource) error {
 		return client.List(org.Entity.SpacesURL, func(space *resource) error {
 			return client.List(space.Entity.AppsURL, func(app *resource) error {
@@ -205,13 +224,14 @@ func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error
 					messages = append(messages, "OK")
 				}
 
-				table.Append([]string{
-					org.Entity.Name,
-					space.Entity.Name,
-					app.Entity.Name,
-					strings.Join(bps, ", "),
-					strings.Join(messages, ", "),
+				allInfo = append(allInfo, &buildpackUsageInfo{
+					Organization: org.Entity.Name,
+					Space:        space.Entity.Name,
+					Application:  app.Entity.Name,
+					Buildpacks:   bps,
+					Messages:     messages,
 				})
+
 				return nil
 			})
 		})
@@ -220,31 +240,51 @@ func (c *reportUsers) reportBuildpacks(cliConnection plugin.CliConnection) error
 		return err
 	}
 
+	if outputJSON {
+		return json.NewEncoder(out).Encode(allInfo)
+	}
+
+	table := tablewriter.NewWriter(out)
+	table.SetHeader([]string{"Organization", "Space", "Application", "Buildpacks", "Messages"})
+	for _, row := range allInfo {
+		table.Append([]string{
+			row.Organization,
+			row.Space,
+			row.Application,
+			strings.Join(row.Buildpacks, ", "),
+			strings.Join(row.Messages, ", "),
+		})
+	}
 	table.Render()
+
 	return nil
 }
 
-func (c *reportUsers) reportUsers(cliConnection plugin.CliConnection) error {
-	client, err := newSimpleClient(cliConnection)
-	if err != nil {
-		return err
-	}
+type userInfoLineItem struct {
+	Organization string `json:"organization"`
+	Space        string `json:"space,omitempty"`
+	Username     string `json:"username"`
+	Role         string `json:"role"`
+}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Organization", "Space", "Username", "Role"})
-
-	err = client.List("/v2/organizations", func(org *resource) error {
+func (c *reportUsers) reportUsers(client *simpleClient, out io.Writer, outputJSON bool) error {
+	var allInfo []*userInfoLineItem
+	err := client.List("/v2/organizations", func(org *resource) error {
 		for _, orgRole := range []struct {
 			Role string
 			URL  string
 		}{
-			//{"OrgUser", org.Entity.UsersURL}, // These don't appear to be meaningful
+			//{"OrgUser", org.Entity.UsersURL}, // These don't appear to be terribly meaningful
 			{"OrgManager", org.Entity.ManagersURL},
 			{"OrgBillingManager", org.Entity.BillingManagersURL},
 			{"OrgAuditor", org.Entity.AuditorsURL},
 		} {
-			err = client.List(orgRole.URL, func(user *resource) error {
-				table.Append([]string{org.Entity.Name, "n/a", user.Entity.Username, orgRole.Role})
+			err := client.List(orgRole.URL, func(user *resource) error {
+				allInfo = append(allInfo, &userInfoLineItem{
+					Organization: org.Entity.Name,
+					Username:     user.Entity.Username,
+					Role:         orgRole.Role,
+				})
 				return nil
 			})
 			if err != nil {
@@ -261,8 +301,13 @@ func (c *reportUsers) reportUsers(cliConnection plugin.CliConnection) error {
 				{"SpaceManager", space.Entity.ManagersURL},
 				{"SpaceAuditor", space.Entity.AuditorsURL},
 			} {
-				err = client.List(spaceRole.URL, func(user *resource) error {
-					table.Append([]string{org.Entity.Name, space.Entity.Name, user.Entity.Username, spaceRole.Role})
+				err := client.List(spaceRole.URL, func(user *resource) error {
+					allInfo = append(allInfo, &userInfoLineItem{
+						Organization: org.Entity.Name,
+						Space:        space.Entity.Name,
+						Username:     user.Entity.Username,
+						Role:         spaceRole.Role,
+					})
 					return nil
 				})
 				if err != nil {
@@ -276,6 +321,15 @@ func (c *reportUsers) reportUsers(cliConnection plugin.CliConnection) error {
 		return err
 	}
 
+	if outputJSON {
+		return json.NewEncoder(out).Encode(allInfo)
+	}
+
+	table := tablewriter.NewWriter(out)
+	table.SetHeader([]string{"Organization", "Space", "Username", "Role"})
+	for _, info := range allInfo {
+		table.Append([]string{info.Organization, info.Space, info.Username, info.Role})
+	}
 	table.Render()
 	return nil
 }
@@ -285,7 +339,7 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 		Name: "Report Users",
 		Version: plugin.VersionType{
 			Major: 0,
-			Minor: 4,
+			Minor: 5,
 			Build: 0,
 		},
 		MinCliVersion: plugin.VersionType{
@@ -298,14 +352,22 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 				Name:     "report-users",
 				HelpText: "Report all users in installation",
 				UsageDetails: plugin.Usage{
-					Usage: "report-users\n   cf report-users",
+					Usage: "cf report-users",
+					Options: map[string]string{
+						"output-json": "if set sends JSON to stdout instead of a rendered table",
+						"quiet":       "if set suppresses printing of progress messages to stderr",
+					},
 				},
 			},
 			{
 				Name:     "report-buildpacks",
 				HelpText: "Report all buildpacks used in installation",
 				UsageDetails: plugin.Usage{
-					Usage: "report-buildpacks\n   cf report-buildpacks",
+					Usage: "cf report-buildpacks",
+					Options: map[string]string{
+						"output-json": "if set sends JSON to stdout instead of a rendered table",
+						"quiet":       "if set suppresses printing of progress messages to stderr",
+					},
 				},
 			},
 		},

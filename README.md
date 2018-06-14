@@ -7,28 +7,17 @@ CloudFoundry CLI plugin to list all users in a CloudFoundry installation
 Pick as appropriate for your OS:
 
 ```bash
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.linux32
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.linux64
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.osx
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.win32
-cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.5.0/report-users.win64
-```
-
-## Install from source
-
-```bash
-go get github.com/govau/cf-report-users/cmd/report-users
-cd $GOPATH/src/github.com/govau/cf-report-users/cmd/report-users
-dep ensure
-go install ./cmd/report-users
-cf install-plugin $GOPATH/bin/report-users -f
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.6.0/report-users.linux32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.6.0/report-users.linux64
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.6.0/report-users.osx
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.6.0/report-users.win32
+cf install-plugin https://github.com/govau/cf-report-users/releases/download/v0.6.0/report-users.win64
 ```
 
 ## Usage
 
 ```bash
 cf report-users
-cf report-buildpacks
 ```
 
 ## Development

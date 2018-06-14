@@ -4,12 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"code.cloudfoundry.org/cli/plugin"
@@ -153,111 +151,7 @@ func (c *reportUsers) Run(cliConnection plugin.CliConnection, args []string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-
-	case "report-buildpacks":
-		err := c.reportBuildpacks(client, os.Stdout, outputJSON)
-		if err != nil {
-			log.Fatal(err)
-		}
 	}
-}
-
-type buildpackUsageInfo struct {
-	Organization string   `json:"organization"`
-	Space        string   `json:"space"`
-	Application  string   `json:"application"`
-	Buildpacks   []string `json:"buildpacks,omitempty"`
-	Messages     []string `json:"messages,omitempty"`
-}
-
-func (c *reportUsers) reportBuildpacks(client *simpleClient, out io.Writer, outputJSON bool) error {
-	buildpacks := make(map[string]*resource)
-	err := client.List("/v2/buildpacks", func(bp *resource) error {
-		if bp.Entity.Enabled {
-			buildpacks[bp.Entity.Name] = bp
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	var allInfo []*buildpackUsageInfo
-	err = client.List("/v2/organizations", func(org *resource) error {
-		return client.List(org.Entity.SpacesURL, func(space *resource) error {
-			return client.List(space.Entity.AppsURL, func(app *resource) error {
-				var bps []string
-				var messages []string
-
-				var dropletAnswer droplet
-				err := client.Get(fmt.Sprintf("/v3/apps/%s/droplets/current", app.Metadata.Guid), &dropletAnswer)
-				if err != nil {
-					messages = append(messages, "needs attention (1)")
-				} else {
-					if len(dropletAnswer.Buildpacks) == 0 {
-						messages = append(messages, "needs attention (2)")
-					}
-					for _, bp := range dropletAnswer.Buildpacks {
-						if bp.Version == "" {
-							messages = append(messages, "needs attention (3)")
-						} else {
-							bps = append(bps, fmt.Sprintf("%s v%s", bp.BuildpackName, bp.Version))
-							bpr, found := buildpacks[bp.Name]
-							if !found {
-								messages = append(messages, "needs attention (4)")
-							} else {
-								if !strings.HasSuffix(bpr.Entity.Filename, fmt.Sprintf("v%s.zip", bp.Version)) {
-									messages = append(messages, "needs attention (5)")
-								}
-							}
-						}
-					}
-				}
-
-				if len(bps) == 0 {
-					if app.Entity.Buildpack != "" {
-						bps = append(bps, app.Entity.Buildpack)
-					}
-				}
-
-				if len(messages) == 0 {
-					messages = append(messages, "OK")
-				}
-
-				allInfo = append(allInfo, &buildpackUsageInfo{
-					Organization: org.Entity.Name,
-					Space:        space.Entity.Name,
-					Application:  app.Entity.Name,
-					Buildpacks:   bps,
-					Messages:     messages,
-				})
-
-				return nil
-			})
-		})
-	})
-	if err != nil {
-		return err
-	}
-
-	if outputJSON {
-		return json.NewEncoder(out).Encode(allInfo)
-	}
-
-	table := tablewriter.NewWriter(out)
-	table.SetHeader([]string{"Organization", "Space", "Application", "Buildpacks", "Messages"})
-	for _, row := range allInfo {
-		table.Append([]string{
-			row.Organization,
-			row.Space,
-			row.Application,
-			strings.Join(row.Buildpacks, ", "),
-			strings.Join(row.Messages, ", "),
-		})
-	}
-	table.Render()
-
-	return nil
 }
 
 type userInfoLineItem struct {
@@ -336,10 +230,10 @@ func (c *reportUsers) reportUsers(client *simpleClient, out io.Writer, outputJSO
 
 func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 	return plugin.PluginMetadata{
-		Name: "Report Users",
+		Name: "report-users",
 		Version: plugin.VersionType{
 			Major: 0,
-			Minor: 5,
+			Minor: 6,
 			Build: 0,
 		},
 		MinCliVersion: plugin.VersionType{
@@ -353,17 +247,6 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 				HelpText: "Report all users in installation",
 				UsageDetails: plugin.Usage{
 					Usage: "cf report-users",
-					Options: map[string]string{
-						"output-json": "if set sends JSON to stdout instead of a rendered table",
-						"quiet":       "if set suppresses printing of progress messages to stderr",
-					},
-				},
-			},
-			{
-				Name:     "report-buildpacks",
-				HelpText: "Report all buildpacks used in installation",
-				UsageDetails: plugin.Usage{
-					Usage: "cf report-buildpacks",
 					Options: map[string]string{
 						"output-json": "if set sends JSON to stdout instead of a rendered table",
 						"quiet":       "if set suppresses printing of progress messages to stderr",

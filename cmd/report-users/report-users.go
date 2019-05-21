@@ -274,9 +274,10 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 				UsageDetails: plugin.Usage{
 					Usage: "cf report-users",
 					Options: map[string]string{
-						"output-json": "if set sends JSON to stdout instead of a rendered table",
-						"quiet":       "if set suppresses printing of progress messages to stderr",
-						"org-users":   "if set include org-users role",
+						"output-json":          "if set sends JSON to stdout instead of a rendered table",
+						"quiet":                "if set suppresses printing of progress messages to stderr",
+						"org-users":            "if set include org-users role",
+						"insecure-skip-verify": "if set disables TLS verification",
 					},
 				},
 			},

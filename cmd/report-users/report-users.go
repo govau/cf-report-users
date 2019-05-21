@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,6 +15,14 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
+var insecureClient = &http.Client{
+	Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	},
+}
+
 // simpleClient is a simple CloudFoundry client
 type simpleClient struct {
 	// API url, ie "https://api.system.example.com"
@@ -24,6 +33,9 @@ type simpleClient struct {
 
 	// Quiet - if set don't print progress to stderr
 	Quiet bool
+
+	// Client
+	client *http.Client
 }
 
 // Get makes a GET request, where r is the relative path, and rv is json.Unmarshalled to
@@ -36,7 +48,7 @@ func (sc *simpleClient) Get(r string, rv interface{}) error {
 		return err
 	}
 	req.Header.Set("Authorization", sc.Authorization)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := sc.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -110,7 +122,7 @@ type droplet struct {
 
 type reportUsers struct{}
 
-func newSimpleClient(cliConnection plugin.CliConnection, quiet bool) (*simpleClient, error) {
+func newSimpleClient(cliConnection plugin.CliConnection, quiet, insecureSkipVerify bool) (*simpleClient, error) {
 	at, err := cliConnection.AccessToken()
 	if err != nil {
 		return nil, err
@@ -121,10 +133,16 @@ func newSimpleClient(cliConnection plugin.CliConnection, quiet bool) (*simpleCli
 		return nil, err
 	}
 
+	client := http.DefaultClient
+	if insecureSkipVerify {
+		client = insecureClient
+	}
+
 	return &simpleClient{
 		API:           api,
 		Authorization: at,
 		Quiet:         quiet,
+		client:        client,
 	}, nil
 }
 
@@ -132,17 +150,19 @@ func (c *reportUsers) Run(cliConnection plugin.CliConnection, args []string) {
 	outputJSON := false
 	quiet := false
 	orgUsers := false
+	insecureSkipVerify := false
 
 	fs := flag.NewFlagSet("report-users", flag.ExitOnError)
 	fs.BoolVar(&outputJSON, "output-json", false, "if set sends JSON to stdout instead of a rendered table")
 	fs.BoolVar(&quiet, "quiet", false, "if set suppressing printing of progress messages to stderr")
 	fs.BoolVar(&orgUsers, "org-users", false, "if set include org-users which are otherwise skipped")
+	fs.BoolVar(&insecureSkipVerify, "insecure-skip-verify", false, "if set disables TLS verification")
 	err := fs.Parse(args[1:])
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	client, err := newSimpleClient(cliConnection, quiet)
+	client, err := newSimpleClient(cliConnection, quiet, insecureSkipVerify)
 	if err != nil {
 		log.Fatal(err)
 	}

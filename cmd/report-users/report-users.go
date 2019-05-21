@@ -78,7 +78,7 @@ func (sc *simpleClient) List(r string, f func(*resource) error) error {
 // retrieving data from CloudFoundry
 type resource struct {
 	Metadata struct {
-		Guid      string    `json:"guid"`       // app
+		GUID      string    `json:"guid"`       // app
 		UpdatedAt time.Time `json:"updated_at"` // buildpack
 	} `json:"metadata"`
 	Entity struct {
@@ -131,10 +131,12 @@ func newSimpleClient(cliConnection plugin.CliConnection, quiet bool) (*simpleCli
 func (c *reportUsers) Run(cliConnection plugin.CliConnection, args []string) {
 	outputJSON := false
 	quiet := false
+	orgUsers := false
 
 	fs := flag.NewFlagSet("report-users", flag.ExitOnError)
 	fs.BoolVar(&outputJSON, "output-json", false, "if set sends JSON to stdout instead of a rendered table")
 	fs.BoolVar(&quiet, "quiet", false, "if set suppressing printing of progress messages to stderr")
+	fs.BoolVar(&orgUsers, "org-users", false, "if set include org-users which are otherwise skipped")
 	err := fs.Parse(args[1:])
 	if err != nil {
 		log.Fatal(err)
@@ -147,7 +149,7 @@ func (c *reportUsers) Run(cliConnection plugin.CliConnection, args []string) {
 
 	switch args[0] {
 	case "report-users":
-		err := c.reportUsers(client, os.Stdout, outputJSON)
+		err := c.reportUsers(client, os.Stdout, outputJSON, orgUsers)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -161,18 +163,22 @@ type userInfoLineItem struct {
 	Role         string `json:"role"`
 }
 
-func (c *reportUsers) reportUsers(client *simpleClient, out io.Writer, outputJSON bool) error {
+func (c *reportUsers) reportUsers(client *simpleClient, out io.Writer, outputJSON, includeOrgUsers bool) error {
 	var allInfo []*userInfoLineItem
 	err := client.List("/v2/organizations", func(org *resource) error {
 		for _, orgRole := range []struct {
 			Role string
 			URL  string
+			Do   bool
 		}{
-			//{"OrgUser", org.Entity.UsersURL}, // These don't appear to be terribly meaningful
-			{"OrgManager", org.Entity.ManagersURL},
-			{"OrgBillingManager", org.Entity.BillingManagersURL},
-			{"OrgAuditor", org.Entity.AuditorsURL},
+			{"OrgUser", org.Entity.UsersURL, includeOrgUsers}, // We used to think these don't appear to be terribly meaningful, so they are optional
+			{"OrgManager", org.Entity.ManagersURL, true},
+			{"OrgBillingManager", org.Entity.BillingManagersURL, true},
+			{"OrgAuditor", org.Entity.AuditorsURL, true},
 		} {
+			if !orgRole.Do {
+				continue
+			}
 			err := client.List(orgRole.URL, func(user *resource) error {
 				allInfo = append(allInfo, &userInfoLineItem{
 					Organization: org.Entity.Name,
@@ -233,7 +239,7 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 		Name: "report-users",
 		Version: plugin.VersionType{
 			Major: 0,
-			Minor: 6,
+			Minor: 7,
 			Build: 0,
 		},
 		MinCliVersion: plugin.VersionType{
@@ -250,6 +256,7 @@ func (c *reportUsers) GetMetadata() plugin.PluginMetadata {
 					Options: map[string]string{
 						"output-json": "if set sends JSON to stdout instead of a rendered table",
 						"quiet":       "if set suppresses printing of progress messages to stderr",
+						"org-users":   "if set include org-users role",
 					},
 				},
 			},
